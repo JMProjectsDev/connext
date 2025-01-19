@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Connext</string>
+    <string name="new_convo">No hay conversaciones aún.\nPulsa el botón para agregar una nueva conexión.</string>
+    <string name="new_connection">Agregar conexión</string>
+    <string name="title_add_connection">Configura la conexión con otro dispositivo.</string>
+    <string name="devices_found">Dispositivos encontrados</string>
+</resources>

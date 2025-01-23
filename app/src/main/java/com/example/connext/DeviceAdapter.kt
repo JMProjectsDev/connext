@@ -24,11 +24,6 @@ class DeviceAdapter(
 
     override fun getItemCount(): Int = devices.size
 
-    fun updateDevices(newDevices: List<WifiP2pDevice>) {
-        devices = newDevices
-        notifyDataSetChanged()
-    }
-
     inner class DeviceViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val textView: TextView = view.findViewById(android.R.id.text1)
 

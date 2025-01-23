@@ -3,6 +3,7 @@ package com.example.connext
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.net.NetworkInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.util.Log
 import android.widget.Toast
@@ -17,7 +18,7 @@ class WDBroadcastReceiver(
 
     override fun onReceive(context: Context?, intent: Intent?) {
         when (intent?.action) {
-            // WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION: Comprobamos si Wi-Fi Direct está habilitado
+            // Comprobamos si wifi direct esta habilitado
             WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION -> {
                 val state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1)
                 val isEnabled = state == WifiP2pManager.WIFI_P2P_STATE_ENABLED
@@ -29,7 +30,7 @@ class WDBroadcastReceiver(
                 ).show()
             }
 
-            // WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION: Solicita la lista de dispositivos cercanos
+            // Solicita la lista de dispositivos cercanos
             WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> {
                 if (ActivityCompat.checkSelfPermission(
                         context!!, android.Manifest.permission.ACCESS_FINE_LOCATION
@@ -43,35 +44,36 @@ class WDBroadcastReceiver(
                             }
                         } else {
                             Log.d("WDBroadcastReceiver", "No se encontraron dispositivos")
-                            Toast.makeText(activity, "No se encontraron dispositivos", Toast.LENGTH_SHORT).show()
+                            if (activity is AddConnectionActivity) {
+                                activity.updateDeviceList(emptyList()) // Llama con una lista vacía
+                            }
                         }
                     }
                 }
             }
 
-
-            // WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION: Detecta los cambios en la conexión
+            // Detecta los cambios en la conexion
             WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
-
                 val networkInfo = intent.getParcelableExtra<android.net.NetworkInfo>(
                     WifiP2pManager.EXTRA_NETWORK_INFO
                 )
 
                 if (networkInfo?.isConnected == true) {
-                    // Si estamos conectados, obtenemos información sobre la conexión
+                    // Si estamos conectados, obtenemos informacion sobre la conexion
                     manager.requestConnectionInfo(channel) { info ->
-                        val deviceAddress = info.groupOwnerAddress.hostAddress
+                        val deviceAddress = info.groupOwnerAddress?.hostAddress ?: "Desconocido"
                         Toast.makeText(
                             activity,
                             "Conectado a: $deviceAddress",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
-                } else {
-                    // Si la conexión se pierde
+                } else if (networkInfo != null && networkInfo.state == NetworkInfo.State.DISCONNECTED) {
+                    // Solo mostramos este mensaje si estabamos conectados antes
                     Toast.makeText(activity, "Conexión perdida", Toast.LENGTH_SHORT).show()
                 }
             }
+
         }
     }
 }

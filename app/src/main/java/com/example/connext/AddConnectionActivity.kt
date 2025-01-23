@@ -9,9 +9,11 @@ import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.util.Log
 import android.view.View
 import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -21,12 +23,16 @@ import androidx.recyclerview.widget.RecyclerView
 
 class AddConnectionActivity : AppCompatActivity() {
 
+    private lateinit var txt_devices_found: TextView
     private lateinit var devicesRecyclerView: RecyclerView
     private lateinit var progressBar: ProgressBar
     private lateinit var adapter: DeviceAdapter
     private lateinit var manager: WifiP2pManager
     private lateinit var channel: WifiP2pManager.Channel
     private val peers = mutableListOf<WifiP2pDevice>()
+
+    private var isDiscovering = false
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,11 +41,12 @@ class AddConnectionActivity : AppCompatActivity() {
         // Habilitar la flecha de retorno
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
-        // Configuración inicial
+        // Configuracion inicial
         devicesRecyclerView = findViewById(R.id.devicesRecyclerView)
         progressBar = findViewById(R.id.progressBar)
+        txt_devices_found = findViewById(R.id.id_devices_found)
 
-        // Inicializar Wi-Fi Direct
+        // Inicializar wifi direct
         manager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
         channel = manager.initialize(this, mainLooper, null)
 
@@ -50,24 +57,40 @@ class AddConnectionActivity : AppCompatActivity() {
         devicesRecyclerView.layoutManager = LinearLayoutManager(this)
         devicesRecyclerView.adapter = adapter
 
-        // Iniciar la búsqueda de dispositivos
+        // Iniciar la busqueda de dispositivos
         startDeviceDiscovery()
     }
 
-    // Método para actualizar la lista de dispositivos en el RecyclerView
+    // Metodo para actualizar la lista de dispositivos en el RecyclerView
     fun updateDeviceList(devices: List<WifiP2pDevice>) {
-        runOnUiThread {
-            peers.clear()
-            peers.addAll(devices)
-            adapter.notifyDataSetChanged()  // Notificar al adaptador que los datos han cambiado
+        progressBar.visibility = View.GONE
+        isDiscovering = false // Resetear flag
+
+        txt_devices_found.text = "Dispositivos encontrados: ${devices.size}"
+
+        if (devices.isEmpty()) {
+            Toast.makeText(this, "No se encontraron dispositivos cercanos", Toast.LENGTH_SHORT).show()
+        } else {
+            runOnUiThread {
+                peers.clear()
+                peers.addAll(devices)
+                adapter.notifyDataSetChanged()  // Notificar al adaptador que los datos han cambiado
+            }
+            Log.d("AddConnectionActivity", "Dispositivos encontrados: $devices")
         }
     }
+
 
     companion object {
         private const val PERMISSION_REQUEST_CODE = 123
     }
 
     private fun startDeviceDiscovery() {
+        if (isDiscovering) {
+            Log.d("AddConnectionActivity", "Ya hay una búsqueda en progreso.")
+            return
+        }
+
         if (ActivityCompat.checkSelfPermission(
                 this, Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ActivityCompat.checkSelfPermission(
@@ -87,21 +110,37 @@ class AddConnectionActivity : AppCompatActivity() {
         }
 
         progressBar.visibility = View.VISIBLE
+        isDiscovering = true
+
+        // Tiempo maximo de busqueda 15 segundos
+        Handler(mainLooper).postDelayed({
+            if (isDiscovering) {
+                stopDeviceDiscovery()
+                Toast.makeText(
+                    this@AddConnectionActivity,
+                    "No se encontraron dispositivos cercanos",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }, 15000)
+
         manager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
-                Toast.makeText(this@AddConnectionActivity, "Búsqueda iniciada", Toast.LENGTH_SHORT)
-                    .show()
+                if (isDiscovering) { // Asegurarse de que no se ejecute si ya se detuvo
+                    Toast.makeText(
+                        this@AddConnectionActivity, "Búsqueda iniciada", Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
 
             override fun onFailure(reason: Int) {
-                progressBar.visibility = View.GONE
+                stopDeviceDiscovery()
                 val message = when (reason) {
                     WifiP2pManager.ERROR -> "Error interno en Wi-Fi Direct"
                     WifiP2pManager.P2P_UNSUPPORTED -> "Wi-Fi Direct no es compatible en este dispositivo"
                     WifiP2pManager.BUSY -> "El framework está ocupado, inténtalo más tarde"
                     else -> "Error desconocido"
                 }
-                Log.e("WifiP2pError", "Discover peers failed. Reason: $reason")
                 Toast.makeText(
                     this@AddConnectionActivity,
                     "Error al buscar dispositivos: $message",
@@ -111,6 +150,19 @@ class AddConnectionActivity : AppCompatActivity() {
         })
     }
 
+    private fun stopDeviceDiscovery() {
+        progressBar.visibility = View.GONE
+        isDiscovering = false
+        manager.stopPeerDiscovery(channel, object : WifiP2pManager.ActionListener {
+            override fun onSuccess() {
+                Log.d("AddConnectionActivity", "Búsqueda detenida exitosamente.")
+            }
+
+            override fun onFailure(reason: Int) {
+                Log.e("AddConnectionActivity", "Error al detener la búsqueda: $reason")
+            }
+        })
+    }
 
     private fun connectToDevice(device: WifiP2pDevice) {
         val config = WifiP2pConfig().apply {
@@ -141,7 +193,6 @@ class AddConnectionActivity : AppCompatActivity() {
                 }
             })
         }
-
     }
 
     override fun onDestroy() {

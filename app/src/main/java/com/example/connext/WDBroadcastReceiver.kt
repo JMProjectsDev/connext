@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.wifi.p2p.WifiP2pManager
-import android.net.wifi.p2p.WifiP2pDevice
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -37,17 +37,18 @@ class WDBroadcastReceiver(
                 ) {
                     manager.requestPeers(channel) { peers ->
                         if (peers.deviceList.isNotEmpty()) {
+                            Log.d("WDBroadcastReceiver", "Dispositivos detectados: ${peers.deviceList}")
                             if (activity is AddConnectionActivity) {
                                 activity.updateDeviceList(peers.deviceList.toList())
                             }
                         } else {
-                            Toast.makeText(
-                                activity, "No se encontraron dispositivos", Toast.LENGTH_SHORT
-                            ).show()
+                            Log.d("WDBroadcastReceiver", "No se encontraron dispositivos")
+                            Toast.makeText(activity, "No se encontraron dispositivos", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
             }
+
 
             // WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION: Detecta los cambios en la conexión
             WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {

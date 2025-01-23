@@ -1,22 +1,20 @@
 package com.example.connext
 
+import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.Manifest
-import android.content.Intent
-import android.location.LocationManager
 import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pManager
+import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
+import android.util.Log
 import android.view.View
 import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
@@ -70,15 +68,20 @@ class AddConnectionActivity : AppCompatActivity() {
     }
 
     private fun startDeviceDiscovery() {
-        if (ContextCompat.checkSelfPermission(
+        if (ActivityCompat.checkSelfPermission(
                 this, Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
+            ) != PackageManager.PERMISSION_GRANTED || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ActivityCompat.checkSelfPermission(
+                this, Manifest.permission.NEARBY_WIFI_DEVICES
+            ) != PackageManager.PERMISSION_GRANTED)
         ) {
             ActivityCompat.requestPermissions(
-                this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), PERMISSION_REQUEST_CODE
+                this, arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.NEARBY_WIFI_DEVICES
+                ), PERMISSION_REQUEST_CODE
             )
             Toast.makeText(
-                this, "Permiso de ubicación necesario para Wi-Fi Direct", Toast.LENGTH_SHORT
+                this, "Permisos necesarios para Wi-Fi Direct", Toast.LENGTH_SHORT
             ).show()
             return
         }
@@ -92,14 +95,22 @@ class AddConnectionActivity : AppCompatActivity() {
 
             override fun onFailure(reason: Int) {
                 progressBar.visibility = View.GONE
+                val message = when (reason) {
+                    WifiP2pManager.ERROR -> "Error interno en Wi-Fi Direct"
+                    WifiP2pManager.P2P_UNSUPPORTED -> "Wi-Fi Direct no es compatible en este dispositivo"
+                    WifiP2pManager.BUSY -> "El framework está ocupado, inténtalo más tarde"
+                    else -> "Error desconocido"
+                }
+                Log.e("WifiP2pError", "Discover peers failed. Reason: $reason")
                 Toast.makeText(
                     this@AddConnectionActivity,
-                    "Error al buscar dispositivos: $reason",
+                    "Error al buscar dispositivos: $message",
                     Toast.LENGTH_SHORT
                 ).show()
             }
         })
     }
+
 
     private fun connectToDevice(device: WifiP2pDevice) {
         val config = WifiP2pConfig().apply {
@@ -107,22 +118,30 @@ class AddConnectionActivity : AppCompatActivity() {
             wps.setup = WpsInfo.PBC
         }
 
-        manager.connect(channel, config, object : WifiP2pManager.ActionListener {
-            override fun onSuccess() {
-                Toast.makeText(
-                    this@AddConnectionActivity,
-                    "Conectado a ${device.deviceName}",
-                    Toast.LENGTH_SHORT
-                ).show()
-                finish()
-            }
+        if (ActivityCompat.checkSelfPermission(
+                this, Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(
+                this, Manifest.permission.NEARBY_WIFI_DEVICES
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            manager.connect(channel, config, object : WifiP2pManager.ActionListener {
+                override fun onSuccess() {
+                    Toast.makeText(
+                        this@AddConnectionActivity,
+                        "Conectado a ${device.deviceName}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    finish()
+                }
 
-            override fun onFailure(reason: Int) {
-                Toast.makeText(
-                    this@AddConnectionActivity, "Error al conectar: $reason", Toast.LENGTH_SHORT
-                ).show()
-            }
-        })
+                override fun onFailure(reason: Int) {
+                    Toast.makeText(
+                        this@AddConnectionActivity, "Error al conectar: $reason", Toast.LENGTH_SHORT
+                    ).show()
+                }
+            })
+        }
+
     }
 
     override fun onDestroy() {

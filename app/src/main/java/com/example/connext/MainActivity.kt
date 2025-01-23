@@ -1,5 +1,6 @@
 package com.example.connext
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -7,9 +8,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
-import android.Manifest
 import android.location.LocationManager
-import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.os.Bundle
@@ -163,33 +162,38 @@ class MainActivity : AppCompatActivity() {
     private fun discoverPeersSafely() {
         if (ActivityCompat.checkSelfPermission(
                 this, Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(
+            ) != PackageManager.PERMISSION_GRANTED || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ActivityCompat.checkSelfPermission(
                 this, Manifest.permission.NEARBY_WIFI_DEVICES
-            ) != PackageManager.PERMISSION_GRANTED
+            ) != PackageManager.PERMISSION_GRANTED)
         ) {
-            manager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
-                override fun onSuccess() {
-                    Toast.makeText(this@MainActivity, "Búsqueda iniciada", Toast.LENGTH_SHORT)
-                        .show()
-                }
-
-                override fun onFailure(reason: Int) {
-                    val message = when (reason) {
-                        WifiP2pManager.ERROR -> "Error interno en Wi-Fi Direct"
-                        WifiP2pManager.P2P_UNSUPPORTED -> "Wi-Fi Direct no es compatible en este dispositivo"
-                        WifiP2pManager.BUSY -> "El framework está ocupado, inténtalo más tarde"
-                        else -> "Error desconocido"
-                    }
-                    Log.e("WifiP2pError", "Discover peers failed. Reason: $reason")
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Error al buscar dispositivos: $message",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            })
+            ActivityCompat.requestPermissions(
+                this, arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.NEARBY_WIFI_DEVICES
+                ), PERMISSION_REQUEST_CODE
+            )
+            Toast.makeText(this, "Permiso necesario para Wi-Fi Direct", Toast.LENGTH_SHORT).show()
+            return
         }
 
+        manager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
+            override fun onSuccess() {
+                Toast.makeText(this@MainActivity, "Búsqueda iniciada", Toast.LENGTH_SHORT).show()
+            }
+
+            override fun onFailure(reason: Int) {
+                val message = when (reason) {
+                    WifiP2pManager.ERROR -> "Error interno en Wi-Fi Direct"
+                    WifiP2pManager.P2P_UNSUPPORTED -> "Wi-Fi Direct no es compatible en este dispositivo"
+                    WifiP2pManager.BUSY -> "El framework está ocupado, inténtalo más tarde"
+                    else -> "Error desconocido"
+                }
+                Log.e("WifiP2pError", "Discover peers failed. Reason: $reason")
+                Toast.makeText(
+                    this@MainActivity, "Error al buscar dispositivos: $message", Toast.LENGTH_SHORT
+                ).show()
+            }
+        })
     }
 
     override fun onRequestPermissionsResult(
